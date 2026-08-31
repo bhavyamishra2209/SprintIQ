@@ -1,0 +1,99 @@
+{
+  "project_id": "MOCK-PROJECT-001",
+  "generated_at": "2026-08-29T10:00:00Z",
+  "nodes": [
+    {
+      "id": "T-01",
+      "title": "User Authentication",
+      "status": "done",
+      "assignee": "Arjun",
+      "estimate": 16,
+      "sprint": "Sprint 1"
+    },
+    {
+      "id": "T-02",
+      "title": "Database Schema Design",
+      "status": "done",
+      "assignee": "Priya",
+      "estimate": 8,
+      "sprint": "Sprint 1"
+    },
+    {
+      "id": "T-03",
+      "title": "Jira API Integration",
+      "status": "in_progress",
+      "assignee": "Arjun",
+      "estimate": 20,
+      "sprint": "Sprint 2"
+    },
+    {
+      "id": "T-04",
+      "title": "Digital Twin Construction",
+      "status": "in_progress",
+      "assignee": "Priya",
+      "estimate": 24,
+      "sprint": "Sprint 2"
+    },
+    {
+      "id": "T-05",
+      "title": "Dependency Graph Visualization",
+      "status": "todo",
+      "assignee": "Riya",
+      "estimate": 16,
+      "sprint": "Sprint 3"
+    },
+    {
+      "id": "T-06",
+      "title": "Impact Analysis Engine",
+      "status": "todo",
+      "assignee": "Arjun",
+      "estimate": 20,
+      "sprint": "Sprint 3"
+    },
+    {
+      "id": "T-07",
+      "title": "What-If Simulation Engine",
+      "status": "todo",
+      "assignee": "Riya",
+      "estimate": 24,
+      "sprint": "Sprint 3"
+    },
+    {
+      "id": "T-08",
+      "title": "Recommendation Engine",
+      "status": "todo",
+      "assignee": "Priya",
+      "estimate": 20,
+      "sprint": "Sprint 4"
+    },
+    {
+      "id": "T-09",
+      "title": "Decision Comparison Dashboard",
+      "status": "todo",
+      "assignee": "Riya",
+      "estimate": 16,
+      "sprint": "Sprint 4"
+    },
+    {
+      "id": "T-10",
+      "title": "Frontend Integration",
+      "status": "todo",
+      "assignee": "Arjun",
+      "estimate": 20,
+      "sprint": "Sprint 4"
+    }
+  ],
+  "edges": [
+    { "from_node": "T-01", "to_node": "T-03", "type": "blocks" },
+    { "from_node": "T-02", "to_node": "T-04", "type": "blocks" },
+    { "from_node": "T-03", "to_node": "T-06", "type": "blocks" },
+    { "from_node": "T-04", "to_node": "T-05", "type": "blocks" },
+    { "from_node": "T-04", "to_node": "T-06", "type": "blocks" },
+    { "from_node": "T-05", "to_node": "T-07", "type": "blocks" },
+    { "from_node": "T-06", "to_node": "T-07", "type": "blocks" },
+    { "from_node": "T-07", "to_node": "T-08", "type": "blocks" },
+    { "from_node": "T-07", "to_node": "T-09", "type": "blocks" },
+    { "from_node": "T-08", "to_node": "T-10", "type": "blocks" },
+    { "from_node": "T-09", "to_node": "T-10", "type": "blocks" }
+  ]
+}
