@@ -292,7 +292,7 @@ The layered and modular structure improves maintainability by separating respons
 
 [Drive Link of Architecture Diagram](https://drive.google.com/file/d/1vjFUJwJOaNCTZns0yqwoR0RK52UqknVm/view?usp=drive_link)
 
-![SprintIQ High-Level Architecture](./docs/design/diagrams/high_level_architecture.png)
+![SprintIQ High-Level Architecture](./docs/design/diagrams/high_level_architecture.drawio.png)
 
 ## User Interface Design
 
