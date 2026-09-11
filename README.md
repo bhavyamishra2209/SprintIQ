@@ -280,6 +280,33 @@ docker compose down
 ```
 
 ---
+# Software Design
+
+## Architecture
+
+SprintIQ follows a layered architecture consisting of the Presentation, Application, and Data layers. The React frontend communicates with the FastAPI backend through REST APIs, while the backend modules handle Jira integration, digital twin generation, impact analysis, simulation, optimization, and decision comparison.
+
+The layered and modular structure improves maintainability by separating responsibilities and reducing dependencies between components.
+
+[View Editable Architecture Diagram](.docs/design/diagrams/updated_architecture.drawio)
+
+[Drive Link of Architecture Diagram](https://drive.google.com/file/d/1vjFUJwJOaNCTZns0yqwoR0RK52UqknVm/view?usp=drive_link)
+
+![SprintIQ Architecture](.docs/design/diagrams/high_level_architecture.png)
+
+## User Interface Design
+
+The SprintIQ interface was designed in Figma with six main screens covering the core project planning and decision-support workflow.
+
+[Figma Prototype](https://www.figma.com/design/cc8TzQmlJd04v4OYznHB1s/SprintIQ?node-id=0-1&t=fRNsumaKHTuld3Cw-1)
+
+UI screenshots are available in the [design/ui](.docs/design/ui/) folder.
+
+## Design Choices
+
+SprintIQ uses a layered architecture with a modular FastAPI backend, separating presentation, business logic, and data management. 
+Individual services are organized around focused responsibilities such as Jira integration, digital twin generation, impact analysis, simulation, optimization, and comparison, which improves cohesion and maintainability. 
+REST APIs and defined data structures reduce coupling between components and allow individual modules to evolve independently.
 
 # Local Development Tools
 
