@@ -288,11 +288,11 @@ SprintIQ follows a layered architecture consisting of the Presentation, Applicat
 
 The layered and modular structure improves maintainability by separating responsibilities and reducing dependencies between components.
 
-[View Editable Architecture Diagram](.docs/design/diagrams/updated_architecture.drawio)
+[View Editable Architecture Diagram](./docs/design/diagrams/updated_architecture.drawio)
 
 [Drive Link of Architecture Diagram](https://drive.google.com/file/d/1vjFUJwJOaNCTZns0yqwoR0RK52UqknVm/view?usp=drive_link)
 
-![SprintIQ Architecture](.docs/design/diagrams/high_level_architecture.png)
+![SprintIQ Architecture](./docs/design/diagrams/high_level_architecture.png)
 
 ## User Interface Design
 
@@ -300,7 +300,7 @@ The SprintIQ interface was designed in Figma with six main screens covering the 
 
 [Figma Prototype](https://www.figma.com/design/cc8TzQmlJd04v4OYznHB1s/SprintIQ?node-id=0-1&t=fRNsumaKHTuld3Cw-1)
 
-UI screenshots are available in the [design/ui](.docs/design/ui/) folder.
+UI screenshots are available in the [design/ui](./docs/design/ui/) folder.
 
 ## Design Choices
 
