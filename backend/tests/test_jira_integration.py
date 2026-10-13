@@ -255,3 +255,302 @@ async def test_jira_client_retry_on_429():
     result = await client.ping()
     assert result["accountId"] == "success-id"
     assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_real_jira_shape_single_page_and_idempotency():
+    store = InMemoryStore()
+    project_repo = InMemoryProjectRepository(store)
+    developer_repo = InMemoryDeveloperRepository(store)
+    sprint_repo = InMemorySprintRepository(store)
+    task_repo = InMemoryTaskRepository(store)
+    dependency_repo = InMemoryDependencyRepository(store)
+
+    project_id = uuid4()
+    project = Project(
+        id=project_id,
+        name="Scrum Project",
+        jira_project_key="SCRUM",
+        jira_board_id=1,
+    )
+    await project_repo.upsert_project(project)
+
+    # Realistic real Jira responses
+    def handler(request: httpx.Request) -> httpx.Response:
+        url_str = str(request.url)
+        if "/rest/agile/1.0/board/1/sprint" in url_str:
+            return httpx.Response(
+                200,
+                json={
+                    "isLast": True,
+                    "values": [{"id": 1, "name": "Sprint 1", "state": "active"}],
+                },
+            )
+        if "/rest/api/3/user/assignable/search" in url_str:
+            return httpx.Response(
+                200,
+                json=[{"accountId": "dev-scrum-1", "displayName": "Scrum Dev", "active": True}],
+            )
+        if "/rest/api/3/search/jql" in url_str:
+            # Verify fields query param was sent and JQL has project key
+            assert "fields=" in url_str or "fields" in request.url.params
+            assert "SCRUM" in url_str or "SCRUM" in request.url.params.get("jql", "")
+            return httpx.Response(
+                200,
+                json={
+                    "isLast": True,
+                    "issues": [
+                        {
+                            "id": "10001",
+                            "key": "SCRUM-1",
+                            "fields": {
+                                "summary": "Setup backend schema",
+                                "description": "ADF or string",
+                                "status": {"name": "Done", "statusCategory": {"key": "done"}},
+                                "timeoriginalestimate": 14400,
+                                "customfield_10016": 4.0,
+                                "customfield_10020": [{"id": 1, "name": "Sprint 1", "state": "active"}],
+                                "assignee": {"accountId": "dev-scrum-1", "displayName": "Scrum Dev"},
+                                "issuelinks": [
+                                    {
+                                        "type": {"name": "Blocks", "outward": "blocks"},
+                                        "outwardIssue": {"id": "10002", "key": "SCRUM-2"},
+                                    }
+                                ],
+                            },
+                        },
+                        {
+                            "id": "10002",
+                            "key": "SCRUM-2",
+                            "fields": {
+                                "summary": "Frontend dashboard integration",
+                                "description": "Second task",
+                                "status": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+                                "timeoriginalestimate": 28800,
+                                "customfield_10016": 8.0,
+                                "customfield_10020": [{"id": 1, "name": "Sprint 1", "state": "active"}],
+                                "assignee": {"accountId": "dev-scrum-1", "displayName": "Scrum Dev"},
+                                "issuelinks": [],
+                            },
+                        },
+                    ],
+                },
+            )
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(handler)
+    async_client = httpx.AsyncClient(transport=transport, base_url="https://scrum.atlassian.net")
+
+    jira_client = JiraClient(
+        base_url="https://scrum.atlassian.net",
+        email="scrum@example.com",
+        api_token="token",
+        http_client=async_client,
+    )
+
+    settings = Settings(
+        STORAGE_BACKEND="memory",
+        JIRA_USE_MOCK=False,
+        JIRA_BASE_URL="https://scrum.atlassian.net",
+        JIRA_EMAIL="scrum@example.com",
+        JIRA_API_TOKEN="token",
+        JIRA_PROJECT_KEY="SCRUM",
+        JIRA_BOARD_ID=1,
+    )
+
+    service = JiraIntegrationService(
+        client=jira_client,
+        project_repo=project_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        settings=settings,
+    )
+
+    # First sync
+    summary1 = await service.sync_project(project_id)
+    assert summary1.synced_tasks == 2
+    assert summary1.synced_dependencies == 1
+    assert summary1.synced_sprints == 1
+    assert summary1.synced_developers == 1
+    assert summary1.warnings == []
+
+    tasks = await task_repo.get_tasks(project_id)
+    assert len(tasks) == 2
+    deps = await dependency_repo.get_dependencies(project_id)
+    assert len(deps) == 1
+
+    # Second sync: verify idempotency
+    summary2 = await service.sync_project(project_id)
+    assert summary2.synced_tasks == 2
+    assert summary2.synced_dependencies == 1
+
+    tasks_after = await task_repo.get_tasks(project_id)
+    assert len(tasks_after) == 2
+    deps_after = await dependency_repo.get_dependencies(project_id)
+    assert len(deps_after) == 1
+
+
+@pytest.mark.asyncio
+async def test_real_jira_shape_two_pages_with_next_page_token():
+    store = InMemoryStore()
+    project_repo = InMemoryProjectRepository(store)
+    developer_repo = InMemoryDeveloperRepository(store)
+    sprint_repo = InMemorySprintRepository(store)
+    task_repo = InMemoryTaskRepository(store)
+    dependency_repo = InMemoryDependencyRepository(store)
+
+    project_id = uuid4()
+    project = Project(
+        id=project_id,
+        name="Scrum Project 2",
+        jira_project_key="SCRUM",
+    )
+    await project_repo.upsert_project(project)
+
+    page_called = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url_str = str(request.url)
+        if "/rest/api/3/user/assignable/search" in url_str:
+            return httpx.Response(200, json=[])
+        if "/rest/api/3/search/jql" in url_str:
+            token = request.url.params.get("nextPageToken")
+            if not token:
+                page_called.append(1)
+                return httpx.Response(
+                    200,
+                    json={
+                        "isLast": False,
+                        "nextPageToken": "page-2-token",
+                        "issues": [
+                            {
+                                "id": "101",
+                                "key": "SCRUM-1",
+                                "fields": {
+                                    "summary": "Page 1 issue",
+                                    "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+                                    "issuelinks": [
+                                        {
+                                            "type": {"name": "Blocks"},
+                                            "outwardIssue": {"id": "102", "key": "SCRUM-2"},
+                                        }
+                                    ],
+                                },
+                            }
+                        ],
+                    },
+                )
+            elif token == "page-2-token":
+                page_called.append(2)
+                return httpx.Response(
+                    200,
+                    json={
+                        "isLast": True,
+                        "issues": [
+                            {
+                                "id": "102",
+                                "key": "SCRUM-2",
+                                "fields": {
+                                    "summary": "Page 2 issue",
+                                    "status": {"name": "Done", "statusCategory": {"key": "done"}},
+                                    "issuelinks": [],
+                                },
+                            }
+                        ],
+                    },
+                )
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(handler)
+    async_client = httpx.AsyncClient(transport=transport, base_url="https://scrum.atlassian.net")
+
+    jira_client = JiraClient(
+        base_url="https://scrum.atlassian.net",
+        email="scrum@example.com",
+        api_token="token",
+        http_client=async_client,
+    )
+
+    service = JiraIntegrationService(
+        client=jira_client,
+        project_repo=project_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        settings=Settings(
+            STORAGE_BACKEND="memory",
+            JIRA_USE_MOCK=False,
+            JIRA_BASE_URL="https://scrum.atlassian.net",
+            JIRA_EMAIL="scrum@example.com",
+            JIRA_API_TOKEN="token",
+        ),
+    )
+
+    summary = await service.sync_project(project_id)
+    assert page_called == [1, 2]
+    assert summary.synced_tasks == 2
+    assert summary.synced_dependencies == 1
+
+
+@pytest.mark.asyncio
+async def test_zero_issues_warning_and_search_error_handling():
+    store = InMemoryStore()
+    project_repo = InMemoryProjectRepository(store)
+    developer_repo = InMemoryDeveloperRepository(store)
+    sprint_repo = InMemorySprintRepository(store)
+    task_repo = InMemoryTaskRepository(store)
+    dependency_repo = InMemoryDependencyRepository(store)
+
+    project_id = uuid4()
+    await project_repo.upsert_project(Project(id=project_id, name="Empty", jira_project_key="EMPTY"))
+
+    # Handler returning 0 issues
+    def zero_handler(request: httpx.Request) -> httpx.Response:
+        if "/user/assignable/search" in str(request.url):
+            return httpx.Response(200, json=[])
+        if "/search/jql" in str(request.url):
+            return httpx.Response(200, json={"isLast": True, "issues": []})
+        return httpx.Response(404)
+
+    client_zero = JiraClient(
+        base_url="https://test.atlassian.net",
+        email="a@b.com",
+        api_token="tok",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(zero_handler)),
+    )
+    service_zero = JiraIntegrationService(
+        client=client_zero,
+        project_repo=project_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        settings=Settings(
+            STORAGE_BACKEND="memory",
+            JIRA_USE_MOCK=False,
+            JIRA_BASE_URL="https://test.atlassian.net",
+            JIRA_EMAIL="a@b.com",
+            JIRA_API_TOKEN="tok",
+        ),
+    )
+
+    summary = await service_zero.sync_project(project_id)
+    assert summary.synced_tasks == 0
+    assert any("Jira returned 0 issues for JQL:" in w for w in summary.warnings)
+
+    # Handler returning unexpected shape / 500 error
+    def error_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="Internal Server Error")
+
+    client_err = JiraClient(
+        base_url="https://test.atlassian.net",
+        email="a@b.com",
+        api_token="tok",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(error_handler)),
+    )
+    with pytest.raises(JiraError):
+        await client_err.search_issues("project = EMPTY", ["summary"])
+

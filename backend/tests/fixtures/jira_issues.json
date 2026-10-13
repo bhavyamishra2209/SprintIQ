@@ -3,7 +3,7 @@
   "startAt": 0,
   "total": 8,
   "isLast": true,
-  "values": [
+  "issues": [
     {
       "id": "10001",
       "key": "ALPHA-1",

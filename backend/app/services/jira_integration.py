@@ -213,15 +213,52 @@ class JiraClient(JiraClientProtocol):
             if next_page_token:
                 params["nextPageToken"] = next_page_token
 
+            logger.info("Sending Jira issue search request: JQL='%s', params=%s", jql, params)
+
             res = await self._request_with_retry(
                 "GET", "/rest/api/3/search/jql", params=params
             )
-            data = res.json()
-            batch = data.get("values", [])
-            issues.extend(batch)
+            if not (200 <= res.status_code < 300):
+                raise JiraError(f"Jira API search failed with status {res.status_code}: {res.text[:200]}")
 
+            try:
+                data = res.json()
+            except Exception as exc:
+                raise JiraError(
+                    f"Failed to parse Jira search JSON response (status {res.status_code}): {res.text[:200]}"
+                ) from exc
+
+            if not isinstance(data, dict):
+                raise JiraError(
+                    f"Unexpected JSON shape from Jira search (status {res.status_code}): expected object, got {type(data).__name__}"
+                )
+
+            if "issues" not in data and "values" not in data:
+                raise JiraError(
+                    f"Unexpected response shape from Jira search (status {res.status_code}): missing 'issues' field. Body: {res.text[:200]}"
+                )
+
+            batch = data.get("issues")
+            if batch is None:
+                batch = data.get("values", [])
+
+            if not isinstance(batch, list):
+                raise JiraError(
+                    f"Unexpected 'issues' shape from Jira search (status {res.status_code}): expected array, got {type(batch).__name__}"
+                )
+
+            issues.extend(batch)
+            logger.info(
+                "Jira search page returned %d issues (total fetched so far: %d)",
+                len(batch),
+                len(issues),
+            )
+
+            is_last = data.get("isLast")
             next_page_token = data.get("nextPageToken")
-            if not next_page_token or not batch:
+
+            # Stop when isLast is True, or there is no nextPageToken, or batch is empty
+            if is_last is True or not next_page_token or not batch:
                 break
 
         return issues
@@ -278,7 +315,10 @@ class MockJiraClient(JiraClientProtocol):
 
     async def search_issues(self, jql: str, fields: list[str]) -> list[dict[str, Any]]:
         data = self._read_fixture("jira_issues.json")
-        return data.get("values", [])
+        batch = data.get("issues")
+        if batch is None:
+            batch = data.get("values", [])
+        return batch
 
     async def get_project_users(self, project_key: str) -> list[dict[str, Any]]:
         return self._read_fixture("jira_users.json")
@@ -391,11 +431,25 @@ class JiraIntegrationService:
             "duedate",
             "timeoriginalestimate",
             "parent",
-            self.settings.JIRA_STORY_POINTS_FIELD,
-            self.settings.JIRA_SPRINT_FIELD,
         ]
+        if self.settings.JIRA_STORY_POINTS_FIELD:
+            fields.append(self.settings.JIRA_STORY_POINTS_FIELD)
+        if self.settings.JIRA_SPRINT_FIELD:
+            fields.append(self.settings.JIRA_SPRINT_FIELD)
+
         jql = f'project = "{project_key}" ORDER BY created ASC'
+        logger.info(
+            "Executing Jira issue search for project %s: JQL='%s', fields=%s",
+            project_key,
+            jql,
+            fields,
+        )
         raw_issues = await self.client.search_issues(jql, fields)
+
+        if len(raw_issues) == 0:
+            zero_warn = f"Jira returned 0 issues for JQL: {jql}"
+            logger.warning(zero_warn)
+            warnings.append(zero_warn)
 
         task_models: list[Task] = []
         for issue in raw_issues:
@@ -482,6 +536,11 @@ class JiraIntegrationService:
             )
 
         upserted_tasks = await self.task_repo.upsert_tasks(task_models)
+        logger.info(
+            "Mapped and upserted %d issues to Task models for project %s",
+            len(upserted_tasks),
+            project_key,
+        )
         task_by_key: dict[str, UUID] = {
             t.jira_issue_key: t.id for t in upserted_tasks if t.jira_issue_key
         }
