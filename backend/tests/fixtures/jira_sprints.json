@@ -1,0 +1,23 @@
+{
+  "maxResults": 50,
+  "startAt": 0,
+  "isLast": true,
+  "values": [
+    {
+      "id": 1,
+      "name": "Sprint 1",
+      "state": "closed",
+      "startDate": "2026-09-01T09:00:00.000Z",
+      "endDate": "2026-09-14T18:00:00.000Z",
+      "goal": "Initial foundation and core spec"
+    },
+    {
+      "id": 2,
+      "name": "Sprint 2",
+      "state": "active",
+      "startDate": "2026-09-15T09:00:00.000Z",
+      "endDate": "2026-09-29T18:00:00.000Z",
+      "goal": "Core services, integration and UAT"
+    }
+  ]
+}
