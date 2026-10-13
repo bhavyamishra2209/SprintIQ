@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager to seed in-memory store at startup."""
     settings = get_settings()
     if settings.STORAGE_BACKEND == "memory":
-        await seed_demo_data()
+        await seed_demo_data(settings=settings)
     yield
 
 

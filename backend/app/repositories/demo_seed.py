@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
 
+from app.core.config import Settings, get_settings
 from app.repositories.in_memory import InMemoryStore, get_in_memory_store
 from app.schemas.domain import Dependency, Developer, Project, Sprint, Task
 
@@ -16,9 +17,13 @@ from app.schemas.domain import Dependency, Developer, Project, Sprint, Task
 DEMO_PROJECT_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
-async def seed_demo_data(store: Optional[InMemoryStore] = None) -> None:
+async def seed_demo_data(
+    store: Optional[InMemoryStore] = None,
+    settings: Optional[Settings] = None,
+) -> None:
     """Populate store with Project Alpha demo dataset."""
     target_store = store or get_in_memory_store()
+    cfg = settings or get_settings()
 
     # Avoid duplicate seeding if project already exists
     if DEMO_PROJECT_ID in target_store.projects:
@@ -26,18 +31,28 @@ async def seed_demo_data(store: Optional[InMemoryStore] = None) -> None:
 
     now = datetime.now(timezone.utc)
 
+    if not cfg.SEED_DEMO_DATA:
+        jira_key = cfg.JIRA_PROJECT_KEY
+        jira_board = cfg.JIRA_BOARD_ID
+    else:
+        jira_key = cfg.JIRA_PROJECT_KEY if cfg.JIRA_PROJECT_KEY is not None else "ALPHA"
+        jira_board = cfg.JIRA_BOARD_ID if cfg.JIRA_BOARD_ID is not None else 101
+
     # 1. Project Alpha
     project = Project(
         id=DEMO_PROJECT_ID,
         name="Project Alpha",
         description="SprintIQ intelligent software project digital twin demo",
-        jira_project_key="ALPHA",
-        jira_board_id=101,
+        jira_project_key=jira_key,
+        jira_board_id=jira_board,
         last_synced_at=now,
         created_at=now - timedelta(days=30),
         updated_at=now,
     )
     target_store.projects[project.id] = project
+
+    if not cfg.SEED_DEMO_DATA:
+        return
 
     # 2. Developers
     dev1 = Developer(

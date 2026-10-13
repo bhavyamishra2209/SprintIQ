@@ -30,11 +30,16 @@ class Settings(BaseSettings):
     JIRA_BASE_URL: Optional[str] = None
     JIRA_EMAIL: Optional[str] = None
     JIRA_API_TOKEN: Optional[str] = None
+    JIRA_PROJECT_KEY: Optional[str] = None
+    JIRA_BOARD_ID: Optional[int] = None
 
     # Jira Fields & Calculations
     JIRA_STORY_POINTS_FIELD: str = "customfield_10016"
     JIRA_SPRINT_FIELD: str = "customfield_10020"
     JIRA_HOURS_PER_STORY_POINT: float = 4.0
+
+    # Demo Seed
+    SEED_DEMO_DATA: bool = True
 
     # Environment
     APP_ENV: str = "dev"

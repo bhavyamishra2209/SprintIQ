@@ -4,8 +4,10 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 import pytest
 
+from app.core.config import Settings
 from app.core.errors import RepositoryError
 from app.repositories import base
+from app.repositories.demo_seed import DEMO_PROJECT_ID, seed_demo_data
 from app.repositories.dependency_repository import SupabaseDependencyRepository
 from app.repositories.developer_repository import SupabaseDeveloperRepository
 from app.repositories.in_memory import (
@@ -180,3 +182,47 @@ async def test_supabase_repository_error_handling(monkeypatch):
     with pytest.raises(RepositoryError) as exc_info:
         await repo.get_tasks(uuid4())
     assert "Failed to fetch tasks" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_seed_demo_data_enabled_with_custom_keys():
+    store = InMemoryStore()
+    settings = Settings(
+        STORAGE_BACKEND="memory",
+        SEED_DEMO_DATA=True,
+        JIRA_PROJECT_KEY="CUSTOMKEY",
+        JIRA_BOARD_ID=404,
+    )
+    await seed_demo_data(store=store, settings=settings)
+
+    assert DEMO_PROJECT_ID in store.projects
+    proj = store.projects[DEMO_PROJECT_ID]
+    assert proj.jira_project_key == "CUSTOMKEY"
+    assert proj.jira_board_id == 404
+    assert len(store.tasks) == 8
+    assert len(store.developers) == 3
+    assert len(store.sprints) == 2
+    assert len(store.dependencies) == 8
+
+
+@pytest.mark.asyncio
+async def test_seed_demo_data_disabled():
+    store = InMemoryStore()
+    settings = Settings(
+        STORAGE_BACKEND="memory",
+        SEED_DEMO_DATA=False,
+        JIRA_PROJECT_KEY="EMPTYPROJ",
+        JIRA_BOARD_ID=500,
+    )
+    await seed_demo_data(store=store, settings=settings)
+
+    assert DEMO_PROJECT_ID in store.projects
+    proj = store.projects[DEMO_PROJECT_ID]
+    assert proj.jira_project_key == "EMPTYPROJ"
+    assert proj.jira_board_id == 500
+    # No tasks, developers, sprints or dependencies should be seeded
+    assert len(store.tasks) == 0
+    assert len(store.developers) == 0
+    assert len(store.sprints) == 0
+    assert len(store.dependencies) == 0
+

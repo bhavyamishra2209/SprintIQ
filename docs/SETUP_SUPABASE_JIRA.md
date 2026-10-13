@@ -9,6 +9,14 @@ SprintIQ is designed with a switchable architecture. It runs immediately out-of-
 The default configuration uses:
 - `STORAGE_BACKEND=memory`
 - `JIRA_USE_MOCK=true`
+- `SEED_DEMO_DATA=true` (seed full 8-task DAG for Project Alpha in memory)
+- `JIRA_PROJECT_KEY=ALPHA` (optional override)
+- `JIRA_BOARD_ID=101` (optional override)
+
+#### Configurable Demo Seed Modes
+When `STORAGE_BACKEND=memory`:
+- **`SEED_DEMO_DATA=true` (Default)**: Creates the demo project with full seed data (3 developers, 2 sprints, 8 tasks, and 8 dependency edges). When `JIRA_PROJECT_KEY` or `JIRA_BOARD_ID` are configured, they are applied to the demo project.
+- **`SEED_DEMO_DATA=false`**: Creates the demo project row (`DEMO_PROJECT_ID: 00000000-0000-0000-0000-000000000001`) with configured `JIRA_PROJECT_KEY` and `JIRA_BOARD_ID`, but does **not** seed any demo tasks, developers, sprints, or dependencies. This allows performing a clean Jira sync from scratch.
 
 ### 1.1 Start with Docker Compose
 ```bash
