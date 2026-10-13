@@ -1,0 +1,20 @@
+[
+  {
+    "accountId": "jira-dev-001",
+    "displayName": "Alice Chen",
+    "emailAddress": "alice@example.com",
+    "active": true
+  },
+  {
+    "accountId": "jira-dev-002",
+    "displayName": "Bob Smith",
+    "emailAddress": "bob@example.com",
+    "active": true
+  },
+  {
+    "accountId": "jira-dev-003",
+    "displayName": "Charlie Dave",
+    "emailAddress": "charlie@example.com",
+    "active": true
+  }
+]

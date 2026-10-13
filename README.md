@@ -235,6 +235,30 @@ Development Workflow:
 - VS Code
 - Docker Compose
 
+## Quick Start – Backend (Zero-Config Mode)
+
+SprintIQ runs out-of-the-box in zero-credential mode with in-memory storage and mock Jira fixtures:
+
+```bash
+cd backend
+python -m venv venv
+# Activate virtual environment:
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Run test suite:
+```bash
+pytest
+```
+
+For complete documentation on running via Docker Compose or switching to Supabase / live Jira Cloud later, see [docs/SETUP_SUPABASE_JIRA.md](docs/SETUP_SUPABASE_JIRA.md).
+
 ## Clone Repository
 
 ```bash
