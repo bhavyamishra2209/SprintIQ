@@ -50,7 +50,7 @@ async def sync_project(
 async def get_sync_status(
     project_id: UUID,
     project_repo: ProjectRepositoryProtocol = Depends(get_project_repository),
-    task_repo: TaskRepositoryProtocol = Depends(get_task_repo),
+    task_repo: TaskRepositoryProtocol = Depends(get_task_repository),
     developer_repo: DeveloperRepositoryProtocol = Depends(get_developer_repository),
     sprint_repo: SprintRepositoryProtocol = Depends(get_sprint_repository),
     dependency_repo: DependencyRepositoryProtocol = Depends(get_dependency_repository),

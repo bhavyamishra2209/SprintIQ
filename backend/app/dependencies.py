@@ -26,6 +26,7 @@ from app.repositories.in_memory import (
 from app.repositories.project_repository import SupabaseProjectRepository
 from app.repositories.sprint_repository import SupabaseSprintRepository
 from app.repositories.task_repository import SupabaseTaskRepository
+from app.services.digital_twin import DigitalTwinService
 from app.services.jira_integration import (
     JiraClient,
     JiraClientProtocol,
@@ -107,3 +108,21 @@ def get_jira_service(
         dependency_repo=dependency_repo,
         settings=settings,
     )
+
+
+def get_digital_twin_service(
+    task_repo: TaskRepositoryProtocol = Depends(get_task_repository),
+    dependency_repo: DependencyRepositoryProtocol = Depends(get_dependency_repository),
+    project_repo: ProjectRepositoryProtocol = Depends(get_project_repository),
+    developer_repo: DeveloperRepositoryProtocol = Depends(get_developer_repository),
+    sprint_repo: SprintRepositoryProtocol = Depends(get_sprint_repository),
+) -> DigitalTwinService:
+    """Return DigitalTwinService with injected repositories."""
+    return DigitalTwinService(
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        project_repo=project_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+    )
+
