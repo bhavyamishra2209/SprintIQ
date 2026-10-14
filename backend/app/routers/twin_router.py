@@ -4,10 +4,20 @@ from typing import Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies import get_digital_twin_service, get_sprint_repository
+from app.dependencies import (
+    get_digital_twin_service,
+    get_recommendation_engine_service,
+    get_sprint_repository,
+)
 from app.repositories.base import SprintRepositoryProtocol
 from app.schemas.graph import GraphSchema
+from app.schemas.recommendation import (
+    ApplyRecommendationRequest,
+    ApplyRecommendationResponse,
+    ProjectRecommendationResponse,
+)
 from app.services.digital_twin import DigitalTwinService
+from app.services.recommendation_engine import RecommendationEngineService
 
 router = APIRouter(prefix="/twin", tags=["digital-twin"])
 
@@ -88,3 +98,32 @@ async def get_upstream_tasks(
         "task_id": str(task_id),
         "upstream": upstream,
     }
+
+
+@router.get(
+    "/projects/{project_id}/recommendations",
+    response_model=ProjectRecommendationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get ML-driven project recommendations and Monte Carlo risk assessment",
+)
+async def get_project_recommendations(
+    project_id: UUID,
+    rec_service: RecommendationEngineService = Depends(get_recommendation_engine_service),
+) -> ProjectRecommendationResponse:
+    """Compute and return ML task slippage risk, Monte Carlo simulation, and prescriptive recommendations."""
+    return await rec_service.get_project_recommendations(project_id)
+
+
+@router.post(
+    "/projects/{project_id}/recommendations/apply",
+    response_model=ApplyRecommendationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Apply an optimization recommendation to the project digital twin",
+)
+async def apply_recommendation(
+    project_id: UUID,
+    req: ApplyRecommendationRequest,
+    rec_service: RecommendationEngineService = Depends(get_recommendation_engine_service),
+) -> ApplyRecommendationResponse:
+    """Commit an optimization recommendation (e.g. reassign task or defer scope) to the project twin."""
+    return await rec_service.apply_recommendation(project_id, req)

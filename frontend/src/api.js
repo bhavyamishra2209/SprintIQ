@@ -110,3 +110,24 @@ export async function connectJiraProject(projectId = DEFAULT_PROJECT_ID, credent
   }
   return await res.json()
 }
+
+export async function fetchRecommendations(projectId = DEFAULT_PROJECT_ID) {
+  const res = await fetch(`${BASE_URL}/twin/projects/${projectId}/recommendations`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch recommendations (${res.status})`)
+  }
+  return await res.json()
+}
+
+export async function applyRecommendation(projectId = DEFAULT_PROJECT_ID, payload) {
+  const res = await fetch(`${BASE_URL}/twin/projects/${projectId}/recommendations/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Failed to apply recommendation (${res.status})`)
+  }
+  return await res.json()
+}
