@@ -139,6 +139,10 @@ class RecommendationEngineService:
         tasks: list[Task],
         nominal_duration: float,
         iterations: int = 1000,
+        project_id: Optional[UUID] = None,
+        dev_hours: Optional[dict[UUID, float]] = None,
+        dev_caps: Optional[dict[UUID, float]] = None,
+        target_deadline: Optional[float] = None,
     ) -> tuple[MonteCarloSummary, dict[str, float]]:
         """Perform 1,000-iteration Monte Carlo PERT-Beta distribution simulation on the project DAG."""
         if not nx.is_directed_acyclic_graph(G) or len(G.nodes) == 0:
@@ -156,21 +160,43 @@ class RecommendationEngineService:
                 {str(t.id): 0.0 for t in tasks},
             )
 
-        rng = np.random.default_rng(42)
+        # Reproducible deterministic pseudo-random seed unique to this project
+        seed = int(project_id.int % (2**31 - 1)) if project_id else 42
+        rng = np.random.default_rng(seed)
         node_ids = list(G.nodes)
         topo_order = list(nx.topological_sort(G))
 
-        # Setup PERT parameters: optimistic (a = 0.75*E), nominal (m = E), pessimistic (b = 1.6*E)
+        # Dynamically parameterize PERT parameters per task based on workload load, in-degree blockers, and size
         task_data = {}
         for nid in node_ids:
+            t = G.nodes[nid].get("task")
             base_dur = G.nodes[nid].get("duration", 0.0)
             if base_dur <= 0.0:
                 task_data[nid] = (0.0, 0.0, 0.0, False)
+                continue
+
+            # Assignee workload utilization
+            assignee_id = getattr(t, "assignee_id", None)
+            if assignee_id and dev_caps and dev_hours and assignee_id in dev_caps:
+                cap = dev_caps.get(assignee_id, DEFAULT_SPRINT_CAPACITY_HOURS)
+                load = dev_hours.get(assignee_id, 0.0)
+                util_ratio = load / cap if cap > 0 else 1.0
             else:
-                a = base_dur * 0.75
-                m = base_dur * 1.0
-                b = base_dur * 1.60
-                task_data[nid] = (a, m, b, True)
+                util_ratio = 0.8
+
+            in_deg = G.in_degree(nid)
+            out_deg = G.out_degree(nid)
+
+            # Assignees working above capacity introduce higher delivery variance & slippage
+            # Tasks with multiple upstream blockers (in_deg >= 2) experience integration drag
+            b_mult = 1.30 + min(0.70, max(0.0, util_ratio - 0.70) * 0.60) + min(0.15, in_deg * 0.04)
+            m_mult = 1.00 + min(0.20, max(0.0, util_ratio - 1.00) * 0.15)
+            a_mult = max(0.65, 0.85 - min(0.15, out_deg * 0.03))
+
+            a = base_dur * a_mult
+            m = base_dur * m_mult
+            b = max(base_dur * b_mult, m + 0.1)
+            task_data[nid] = (a, m, b, True)
 
         simulated_durations = np.zeros(iterations)
         critical_counts = {nid: 0 for nid in node_ids}
@@ -216,8 +242,8 @@ class RecommendationEngineService:
         p80 = float(np.percentile(simulated_durations, 80))
         p95 = float(np.percentile(simulated_durations, 95))
 
-        target_deadline = max(nominal_duration, 1.0)
-        on_time_count = int(np.sum(simulated_durations <= target_deadline * 1.05))
+        effective_deadline = target_deadline if target_deadline is not None else max(nominal_duration * 1.08, 1.0)
+        on_time_count = int(np.sum(simulated_durations <= effective_deadline))
         on_time_prob = round((on_time_count / iterations) * 100.0, 1)
 
         criticality_index = {
@@ -271,7 +297,23 @@ class RecommendationEngineService:
 
         # 3. Monte Carlo PERT-Beta Simulation
         nominal_dur = float(graph_schema.total_duration_hours)
-        monte_carlo_res, criticality_map = self._run_monte_carlo(G, tasks, nominal_dur, iterations=1000)
+
+        # Milestone deadline target based on sprint capacity window or nominal buffer
+        active_sprints = [s for s in sprints if s.state in ("active", "future")]
+        num_sprints = len(active_sprints) if active_sprints else max(1, len(sprints))
+        sprint_window = float(num_sprints * DEFAULT_SPRINT_CAPACITY_HOURS)
+        target_deadline = max(sprint_window, nominal_dur * 1.08)
+
+        monte_carlo_res, criticality_map = self._run_monte_carlo(
+            G,
+            tasks,
+            nominal_dur,
+            iterations=1000,
+            project_id=project_id,
+            dev_hours=dev_hours,
+            dev_caps=dev_caps,
+            target_deadline=target_deadline,
+        )
 
         # 4. ML Task Slippage Scoring
         task_risks: list[MLTaskRiskScore] = []
