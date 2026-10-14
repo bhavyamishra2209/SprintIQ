@@ -5,17 +5,26 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.dependencies import (
+    get_decision_comparison_service,
     get_digital_twin_service,
     get_recommendation_engine_service,
     get_sprint_repository,
 )
 from app.repositories.base import SprintRepositoryProtocol
+from app.schemas.decision import (
+    CommitPlanRequest,
+    CommitPlanResponse,
+    CustomScenarioRequest,
+    DecisionComparisonResponse,
+    PlanScenario,
+)
 from app.schemas.graph import GraphSchema
 from app.schemas.recommendation import (
     ApplyRecommendationRequest,
     ApplyRecommendationResponse,
     ProjectRecommendationResponse,
 )
+from app.services.decision_service import DecisionComparisonService
 from app.services.digital_twin import DigitalTwinService
 from app.services.recommendation_engine import RecommendationEngineService
 
@@ -127,3 +136,48 @@ async def apply_recommendation(
 ) -> ApplyRecommendationResponse:
     """Commit an optimization recommendation (e.g. reassign task or defer scope) to the project twin."""
     return await rec_service.apply_recommendation(project_id, req)
+
+
+@router.get(
+    "/projects/{project_id}/decision-comparison",
+    response_model=DecisionComparisonResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get multi-scenario decision comparison matrix and trade-off frontier",
+)
+async def get_decision_comparison(
+    project_id: UUID,
+    decision_service: DecisionComparisonService = Depends(get_decision_comparison_service),
+) -> DecisionComparisonResponse:
+    """Evaluate baseline plan against multi-objective candidate plans (rebalancing, concurrency, scope buffer, capacity boost)."""
+    return await decision_service.get_decision_comparison(project_id)
+
+
+@router.post(
+    "/projects/{project_id}/decision-comparison/commit",
+    response_model=CommitPlanResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Atomically commit a candidate plan into the Digital Twin store",
+)
+async def commit_decision_plan(
+    project_id: UUID,
+    req: CommitPlanRequest,
+    decision_service: DecisionComparisonService = Depends(get_decision_comparison_service),
+) -> CommitPlanResponse:
+    """Execute all interventions of a selected plan (reassignments, scope buffering, capacity) into the project."""
+    return await decision_service.commit_plan(project_id, req)
+
+
+@router.post(
+    "/projects/{project_id}/decision-comparison/simulate-custom",
+    response_model=PlanScenario,
+    status_code=status.HTTP_200_OK,
+    summary="Simulate a custom user-configured what-if decision scenario",
+)
+async def simulate_custom_scenario(
+    project_id: UUID,
+    req: CustomScenarioRequest,
+    decision_service: DecisionComparisonService = Depends(get_decision_comparison_service),
+) -> PlanScenario:
+    """Evaluate interactive what-if parameters (additional capacity, scope deferral) against the project baseline in real-time."""
+    return await decision_service.evaluate_custom_scenario(project_id, req)
+
