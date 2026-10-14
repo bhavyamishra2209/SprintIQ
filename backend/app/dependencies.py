@@ -33,6 +33,7 @@ from app.services.jira_integration import (
     JiraIntegrationService,
     MockJiraClient,
 )
+from app.services.recommendation_engine import RecommendationEngineService
 
 
 def get_project_repository(
@@ -124,5 +125,24 @@ def get_digital_twin_service(
         project_repo=project_repo,
         developer_repo=developer_repo,
         sprint_repo=sprint_repo,
+    )
+
+
+def get_recommendation_engine_service(
+    task_repo: TaskRepositoryProtocol = Depends(get_task_repository),
+    dependency_repo: DependencyRepositoryProtocol = Depends(get_dependency_repository),
+    project_repo: ProjectRepositoryProtocol = Depends(get_project_repository),
+    developer_repo: DeveloperRepositoryProtocol = Depends(get_developer_repository),
+    sprint_repo: SprintRepositoryProtocol = Depends(get_sprint_repository),
+    twin_service: DigitalTwinService = Depends(get_digital_twin_service),
+) -> RecommendationEngineService:
+    """Return RecommendationEngineService with injected repositories and DigitalTwinService."""
+    return RecommendationEngineService(
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        project_repo=project_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+        twin_service=twin_service,
     )
 

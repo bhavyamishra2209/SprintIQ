@@ -203,7 +203,13 @@ export default function App() {
 
           {activeView === 'simulation' && <WhatIfView graphData={graphData} />}
 
-          {activeView === 'recommendations' && <RecommendationsView />}
+          {activeView === 'recommendations' && (
+            <RecommendationsView
+              projectId={projectId}
+              onRefreshData={loadProjectData}
+              showToast={showToast}
+            />
+          )}
 
           {activeView === 'comparison' && <DecisionComparisonView />}
         </main>
