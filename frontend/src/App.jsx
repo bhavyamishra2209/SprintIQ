@@ -214,7 +214,15 @@ export default function App() {
             />
           )}
 
-          {activeView === 'comparison' && <DecisionComparisonView />}
+          {activeView === 'comparison' && (
+            <DecisionComparisonView
+              projectId={projectId}
+              dataVersion={dataVersion}
+              onRefreshData={loadProjectData}
+              showToast={showToast}
+              projectName={projectName}
+            />
+          )}
         </main>
       </div>
 

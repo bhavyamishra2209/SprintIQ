@@ -131,3 +131,39 @@ export async function applyRecommendation(projectId = DEFAULT_PROJECT_ID, payloa
   }
   return await res.json()
 }
+
+export async function fetchDecisionComparison(projectId = DEFAULT_PROJECT_ID) {
+  const res = await fetch(`${BASE_URL}/twin/projects/${projectId}/decision-comparison`)
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Failed to fetch decision comparison (${res.status})`)
+  }
+  return await res.json()
+}
+
+export async function commitDecisionPlan(projectId = DEFAULT_PROJECT_ID, planId) {
+  const res = await fetch(`${BASE_URL}/twin/projects/${projectId}/decision-comparison/commit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan_id: planId }),
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Failed to commit plan (${res.status})`)
+  }
+  return await res.json()
+}
+
+export async function simulateCustomScenario(projectId = DEFAULT_PROJECT_ID, customConfig) {
+  const res = await fetch(`${BASE_URL}/twin/projects/${projectId}/decision-comparison/simulate-custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(customConfig),
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Failed to simulate custom scenario (${res.status})`)
+  }
+  return await res.json()
+}
+

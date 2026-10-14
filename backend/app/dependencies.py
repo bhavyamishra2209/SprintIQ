@@ -33,6 +33,7 @@ from app.services.jira_integration import (
     JiraIntegrationService,
     MockJiraClient,
 )
+from app.services.decision_service import DecisionComparisonService
 from app.services.recommendation_engine import RecommendationEngineService
 
 
@@ -145,4 +146,26 @@ def get_recommendation_engine_service(
         sprint_repo=sprint_repo,
         twin_service=twin_service,
     )
+
+
+def get_decision_comparison_service(
+    project_repo: ProjectRepositoryProtocol = Depends(get_project_repository),
+    task_repo: TaskRepositoryProtocol = Depends(get_task_repository),
+    dependency_repo: DependencyRepositoryProtocol = Depends(get_dependency_repository),
+    developer_repo: DeveloperRepositoryProtocol = Depends(get_developer_repository),
+    sprint_repo: SprintRepositoryProtocol = Depends(get_sprint_repository),
+    twin_service: DigitalTwinService = Depends(get_digital_twin_service),
+    rec_service: RecommendationEngineService = Depends(get_recommendation_engine_service),
+) -> DecisionComparisonService:
+    """Return DecisionComparisonService with injected repositories and domain services."""
+    return DecisionComparisonService(
+        project_repo=project_repo,
+        task_repo=task_repo,
+        dependency_repo=dependency_repo,
+        developer_repo=developer_repo,
+        sprint_repo=sprint_repo,
+        twin_service=twin_service,
+        rec_service=rec_service,
+    )
+
 
