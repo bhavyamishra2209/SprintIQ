@@ -18,6 +18,7 @@ import { fetchRecommendations, applyRecommendation, DEFAULT_PROJECT_ID } from '.
 
 export default function RecommendationsView({
   projectId = DEFAULT_PROJECT_ID,
+  dataVersion = 0,
   onRefreshData,
   showToast,
 }) {
@@ -48,7 +49,7 @@ export default function RecommendationsView({
 
   useEffect(() => {
     loadRecommendations()
-  }, [projectId])
+  }, [projectId, dataVersion])
 
   const recommendations = data?.recommendations || []
   const monteCarlo = data?.monte_carlo
@@ -90,6 +91,8 @@ export default function RecommendationsView({
       } else {
         alert(`Error: ${err.message}`)
       }
+      // On error, auto-refresh to synchronize with latest backend data
+      await loadRecommendations()
     } finally {
       setIsApplying(false)
     }

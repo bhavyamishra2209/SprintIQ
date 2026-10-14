@@ -25,6 +25,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('dashboard')
   const [projectId, setProjectId] = useState(DEFAULT_PROJECT_ID)
   const [projectName, setProjectName] = useState('PROJECT ALPHA')
+  const [dataVersion, setDataVersion] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
 
   // Backend state
@@ -73,6 +74,7 @@ export default function App() {
           setSelectedTaskId(firstTask.id)
         }
       }
+      setDataVersion((v) => v + 1)
     } catch (err) {
       console.error('Failed to load project data:', err)
       showToast('Could not reach backend API. Using local state.', 'error')
@@ -206,6 +208,7 @@ export default function App() {
           {activeView === 'recommendations' && (
             <RecommendationsView
               projectId={projectId}
+              dataVersion={dataVersion}
               onRefreshData={loadProjectData}
               showToast={showToast}
             />

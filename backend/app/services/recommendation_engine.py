@@ -335,84 +335,109 @@ class RecommendationEngineService:
         recommendations: list[RecommendationItem] = []
         rec_counter = 1
 
-        # Recommendation Type A: Workload & Critical Path Rebalancing
+        # Recommendation Category A: Workload Rebalancing & Critical Path Relief
         if len(developers) >= 2:
-            # Sort developers by current allocated hours descending
-            sorted_devs = sorted(developers, key=lambda d: dev_hours[d.id], reverse=True)
-            most_loaded = sorted_devs[0]
-            least_loaded = sorted_devs[-1]
+            simulated_hours = dict(dev_hours)
+            used_tasks = set()
 
-            load_gap = dev_hours[most_loaded.id] - dev_hours[least_loaded.id]
+            for _ in range(2):  # Generate up to 2 distinct task rebalancing strategies
+                sorted_devs = sorted(developers, key=lambda d: simulated_hours[d.id], reverse=True)
+                most_loaded = sorted_devs[0]
+                least_loaded = sorted_devs[-1]
+                load_gap = simulated_hours[most_loaded.id] - simulated_hours[least_loaded.id]
 
-            if load_gap >= 8.0:
-                # Find candidate incomplete tasks assigned to most_loaded dev
+                if load_gap < 6.0:
+                    break
+
                 cand_tasks = [
                     t for t in tasks
-                    if t.status != "done" and t.assignee_id == most_loaded.id
+                    if t.status != "done"
+                    and t.assignee_id == most_loaded.id
+                    and str(t.id) not in used_tasks
                 ]
-                if cand_tasks:
-                    # Prioritize tasks on critical path or with higher risk score
-                    cand_tasks.sort(
-                        key=lambda t: (
-                            1 if str(t.id) in critical_set else 0,
-                            task_risk_dict.get(str(t.id), MLTaskRiskScore(
-                                task_id=str(t.id), task_key=t.jira_issue_key, title=t.title,
-                                estimate_hours=0, is_critical=False, in_degree=0, out_degree=0,
-                                risk_score=0, risk_level="Low", top_risk_factors=[]
-                            )).risk_score,
-                            float(t.estimate_hours or 0.0)
+                if not cand_tasks:
+                    break
+
+                # Prioritize critical path or high risk tasks
+                cand_tasks.sort(
+                    key=lambda t: (
+                        1 if str(t.id) in critical_set else 0,
+                        task_risk_dict.get(str(t.id), MLTaskRiskScore(
+                            task_id=str(t.id), task_key=t.jira_issue_key, title=t.title,
+                            estimate_hours=0, is_critical=False, in_degree=0, out_degree=0,
+                            risk_score=0, risk_level="Low", top_risk_factors=[]
+                        )).risk_score,
+                        float(t.estimate_hours or 0.0)
+                    ),
+                    reverse=True,
+                )
+                best_task = cand_tasks[0]
+                task_hrs = float(best_task.estimate_hours or 0.0)
+
+                most_cap = dev_caps.get(most_loaded.id, DEFAULT_SPRINT_CAPACITY_HOURS)
+                least_cap = dev_caps.get(least_loaded.id, DEFAULT_SPRINT_CAPACITY_HOURS)
+
+                before_workload_pct = int((simulated_hours[most_loaded.id] / most_cap) * 100) if most_cap > 0 else 100
+                after_workload_pct = int(((simulated_hours[least_loaded.id] + task_hrs) / least_cap) * 100) if least_cap > 0 else 80
+
+                days_saved = max(2, int(task_hrs / 6.0))
+                confidence = min(4.9, round(3.8 + (load_gap / 40.0), 1))
+
+                is_on_critical = str(best_task.id) in critical_set
+                impact_text = (
+                    f"Finish: Accelerated by {days_saved}d · Relieves critical bottleneck"
+                    if is_on_critical
+                    else f"Workload balanced · -{int(task_hrs)}h from overloaded assignee"
+                )
+
+                recommendations.append(
+                    RecommendationItem(
+                        id=str(rec_counter),
+                        type=RecommendationType.REASSIGN,
+                        title=f"Move Task {best_task.jira_issue_key} ({best_task.title}) from {most_loaded.display_name} to {least_loaded.display_name}",
+                        savings=f"Save {days_saved} days / ₹{days_saved * 15000:,}",
+                        impact=impact_text,
+                        risk="Low",
+                        confidence=confidence,
+                        why=f"{least_loaded.display_name} has lower current allocation ({int(simulated_hours[least_loaded.id])}h) vs {most_loaded.display_name} ({int(simulated_hours[most_loaded.id])}h). Reassigning this {int(task_hrs)}h task balances team burnout and shortens delivery risk.",
+                        before=WorkloadBeforeAfter(
+                            assignee=most_loaded.display_name,
+                            workload=before_workload_pct,
                         ),
-                        reverse=True,
+                        after=WorkloadBeforeAfter(
+                            assignee=least_loaded.display_name,
+                            workload=after_workload_pct,
+                        ),
+                        task_id=str(best_task.id),
+                        task_key=best_task.jira_issue_key,
+                        from_assignee_id=str(most_loaded.id),
+                        to_assignee_id=str(least_loaded.id),
+                        suggested_assignee_name=least_loaded.display_name,
+                        action_type="reassign",
                     )
-                    best_task = cand_tasks[0]
-                    task_hrs = float(best_task.estimate_hours or 0.0)
+                )
+                rec_counter += 1
+                used_tasks.add(str(best_task.id))
+                simulated_hours[most_loaded.id] -= task_hrs
+                simulated_hours[least_loaded.id] += task_hrs
 
-                    most_cap = dev_caps.get(most_loaded.id, DEFAULT_SPRINT_CAPACITY_HOURS)
-                    least_cap = dev_caps.get(least_loaded.id, DEFAULT_SPRINT_CAPACITY_HOURS)
-
-                    before_workload_pct = int((dev_hours[most_loaded.id] / most_cap) * 100)
-                    after_workload_pct = int(((dev_hours[least_loaded.id] + task_hrs) / least_cap) * 100)
-
-                    days_saved = max(2, int(task_hrs / 6.0))
-                    confidence = min(4.9, round(3.8 + (load_gap / 40.0), 1))
-
-                    recommendations.append(
-                        RecommendationItem(
-                            id=str(rec_counter),
-                            type=RecommendationType.REASSIGN,
-                            title=f"Move Task {best_task.jira_issue_key} ({best_task.title}) from {most_loaded.display_name} to {least_loaded.display_name}",
-                            savings=f"Save {days_saved} days / ₹{days_saved * 15000:,}",
-                            impact=f"Finish: Accelerated by {days_saved}d · Effort -{int(task_hrs)}h from bottleneck",
-                            risk="Low",
-                            confidence=confidence,
-                            why=f"{least_loaded.display_name} has lower current workload ({int(dev_hours[least_loaded.id])}h assigned) vs {most_loaded.display_name} ({int(dev_hours[most_loaded.id])}h). Reassigning rebalances team velocity and relieves critical bottlenecks.",
-                            before=WorkloadBeforeAfter(
-                                assignee=most_loaded.display_name,
-                                workload=before_workload_pct,
-                            ),
-                            after=WorkloadBeforeAfter(
-                                assignee=least_loaded.display_name,
-                                workload=after_workload_pct,
-                            ),
-                            task_id=str(best_task.id),
-                            task_key=best_task.jira_issue_key,
-                            from_assignee_id=str(most_loaded.id),
-                            to_assignee_id=str(least_loaded.id),
-                            suggested_assignee_name=least_loaded.display_name,
-                            action_type="reassign",
-                        )
-                    )
-                    rec_counter += 1
-
-        # Recommendation Type B: Dependency Concurrency / Fast-Tracking
-        # Look for sequential tasks where interface decoupling / mock stubs could enable overlap
+        # Recommendation Category B: Dependency Concurrency / Fast-Tracking
+        # Look for sequential tasks where interface decoupling / mock stubs enable parallel execution
+        concurrency_count = 0
+        seen_targets = set()
         for d in dependencies:
+            if concurrency_count >= 2:
+                break
             src_t = next((t for t in tasks if t.id == d.from_task_id), None)
             tgt_t = next((t for t in tasks if t.id == d.to_task_id), None)
-            if src_t and tgt_t and src_t.status != "done" and tgt_t.status != "done":
-                # Check for UI / API / Service interaction pairs
+            if src_t and tgt_t and src_t.status != "done" and tgt_t.status != "done" and str(tgt_t.id) not in seen_targets:
                 title_combo = f"{src_t.title} {tgt_t.title}".lower()
-                if ("schema" in title_combo or "gateway" in title_combo or "service" in title_combo or "api" in title_combo) and ("ui" in title_combo or "frontend" in title_combo or "user" in title_combo or "integration" in title_combo):
+                is_parallelizable = any(
+                    kw in title_combo for kw in ["schema", "gateway", "service", "api", "auth", "backend"]
+                ) and any(
+                    kw in title_combo for kw in ["ui", "frontend", "screen", "client", "integration", "flow"]
+                )
+                if is_parallelizable:
                     recommendations.append(
                         RecommendationItem(
                             id=str(rec_counter),
@@ -431,18 +456,20 @@ class RecommendationEngineService:
                         )
                     )
                     rec_counter += 1
-                    break
+                    concurrency_count += 1
+                    seen_targets.add(str(tgt_t.id))
 
-        # Recommendation Type C: Scope Buffer & Deferral Optimization
-        # Find non-critical leaf tasks (out_degree == 0, not in critical path)
-        non_critical_leafs = [
+        # Recommendation Category C: Scope Buffer & Deferral Optimization
+        # Find non-critical tasks that have slack and do not sit on the critical path
+        non_critical_tasks = [
             t for t in tasks
             if t.status != "done"
             and str(t.id) not in critical_set
-            and G.out_degree(str(t.id)) == 0
+            and float(t.estimate_hours or 0.0) >= 12.0
         ]
-        if non_critical_leafs:
-            defer_task = max(non_critical_leafs, key=lambda t: float(t.estimate_hours or 0.0))
+        if non_critical_tasks:
+            # Pick non-critical task with largest estimate to liberate schedule buffer
+            defer_task = max(non_critical_tasks, key=lambda t: float(t.estimate_hours or 0.0))
             defer_hrs = float(defer_task.estimate_hours or 0.0)
             days_saved = max(2, int(defer_hrs / 6.0))
 
@@ -450,14 +477,14 @@ class RecommendationEngineService:
                 RecommendationItem(
                     id=str(rec_counter),
                     type=RecommendationType.SCOPE,
-                    title=f"Defer non-critical item {defer_task.jira_issue_key} ({defer_task.title}) to subsequent sprint",
+                    title=f"Buffer non-critical dependency {defer_task.jira_issue_key} ({defer_task.title}) to subsequent sprint",
                     savings=f"Save {days_saved} days / ₹{days_saved * 15000:,}",
-                    impact=f"Finish: Accelerated by {days_saved}d · Scope reduced by -{int(defer_hrs)}h",
+                    impact=f"Finish: Accelerated by {days_saved}d · Relieves {int(defer_hrs)}h non-critical scope",
                     risk="Low",
-                    confidence=4.8,
-                    why=f"{defer_task.title} has zero downstream blockers and does not sit on the critical path. Deferring guarantees milestone delivery without sacrificing MVP scope.",
-                    before=WorkloadBeforeAfter(assignee="Current Sprint", workload=95),
-                    after=WorkloadBeforeAfter(assignee="Next Sprint Buffer", workload=75),
+                    confidence=4.7,
+                    why=f"{defer_task.title} ({int(defer_hrs)}h) sits off the critical delivery path. Buffering or deferring non-core scope guarantees MVP milestone launch without timeline slip.",
+                    before=WorkloadBeforeAfter(assignee="Current Sprint Scope", workload=95),
+                    after=WorkloadBeforeAfter(assignee="Protected Milestone Buffer", workload=75),
                     task_id=str(defer_task.id),
                     task_key=defer_task.jira_issue_key,
                     action_type="scope",
@@ -513,7 +540,11 @@ class RecommendationEngineService:
             None,
         )
         if not target_task:
-            raise ValueError(f"Task {req.task_id} not found in project {project_id}")
+            from fastapi import HTTPException, status
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task {req.task_id} not found in project {project_id}. The project dataset was refreshed; please select the latest recommendation.",
+            )
 
         new_dev_name = None
 
