@@ -33,3 +33,24 @@ class JiraStatusResponse(BaseModel):
     developer_count: int = 0
     sprint_count: int = 0
     dependency_count: int = 0
+    jira_project_key: Optional[str] = None
+    is_live_connected: bool = False
+
+
+class JiraConnectRequest(BaseModel):
+    """Request payload to connect a real Jira project dynamically without .env changes."""
+
+    jira_base_url: str = Field(..., description="Jira workspace domain, e.g. https://domain.atlassian.net")
+    jira_email: str = Field(..., description="Atlassian account email")
+    jira_api_token: str = Field(..., description="Jira Cloud API token")
+    jira_project_key: str = Field(..., description="Project key, e.g. SCRUM, PROJ")
+    jira_board_id: Optional[int] = Field(None, description="Agile board ID")
+    project_name: Optional[str] = Field(None, description="Display name for the project")
+
+
+class JiraTestConnectionRequest(BaseModel):
+    """Request payload to test credentials against Jira Cloud."""
+
+    jira_base_url: str
+    jira_email: str
+    jira_api_token: str

@@ -61,7 +61,7 @@ async def seed_demo_data(
         jira_account_id="jira-dev-001",
         display_name="Alice Chen",
         email="alice@example.com",
-        capacity_hours_per_sprint=40.0,
+        capacity_hours_per_sprint=80.0,
         is_active=True,
     )
     dev2 = Developer(
@@ -70,7 +70,7 @@ async def seed_demo_data(
         jira_account_id="jira-dev-002",
         display_name="Bob Smith",
         email="bob@example.com",
-        capacity_hours_per_sprint=40.0,
+        capacity_hours_per_sprint=80.0,
         is_active=True,
     )
     dev3 = Developer(
@@ -79,7 +79,7 @@ async def seed_demo_data(
         jira_account_id="jira-dev-003",
         display_name="Charlie Dave",
         email="charlie@example.com",
-        capacity_hours_per_sprint=40.0,
+        capacity_hours_per_sprint=80.0,
         is_active=True,
     )
     for d in (dev1, dev2, dev3):

@@ -4,11 +4,38 @@ from typing import Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies import get_digital_twin_service
+from app.dependencies import get_digital_twin_service, get_sprint_repository
+from app.repositories.base import SprintRepositoryProtocol
 from app.schemas.graph import GraphSchema
 from app.services.digital_twin import DigitalTwinService
 
 router = APIRouter(prefix="/twin", tags=["digital-twin"])
+
+
+@router.get(
+    "/projects/{project_id}/sprints",
+    response_model=list[dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Get project sprints",
+)
+async def get_project_sprints(
+    project_id: UUID,
+    sprint_repo: SprintRepositoryProtocol = Depends(get_sprint_repository),
+) -> list[dict[str, Any]]:
+    """Return all agile sprints synced for the project."""
+    sprints = await sprint_repo.get_sprints(project_id)
+    return [
+        {
+            "id": str(s.id),
+            "jira_sprint_id": s.jira_sprint_id,
+            "name": s.name,
+            "state": s.state,
+            "start_date": s.start_date.isoformat() if s.start_date else None,
+            "end_date": s.end_date.isoformat() if s.end_date else None,
+            "goal": s.goal,
+        }
+        for s in sprints
+    ]
 
 
 @router.get(

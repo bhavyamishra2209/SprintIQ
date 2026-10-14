@@ -48,6 +48,10 @@ class DeveloperRepositoryProtocol(Protocol):
         """Upsert a list of developers, resolving on (project_id, jira_account_id)."""
         ...
 
+    async def delete_by_project(self, project_id: UUID) -> int:
+        """Delete all developers belonging to a project."""
+        ...
+
 
 @runtime_checkable
 class SprintRepositoryProtocol(Protocol):
@@ -63,6 +67,10 @@ class SprintRepositoryProtocol(Protocol):
 
     async def upsert_sprints(self, sprints: list[Sprint]) -> list[Sprint]:
         """Upsert a list of sprints, resolving on (project_id, jira_sprint_id)."""
+        ...
+
+    async def delete_by_project(self, project_id: UUID) -> int:
+        """Delete all sprints belonging to a project."""
         ...
 
 
@@ -82,6 +90,10 @@ class TaskRepositoryProtocol(Protocol):
         """Upsert a list of tasks, resolving on (project_id, jira_issue_key)."""
         ...
 
+    async def delete_by_project(self, project_id: UUID) -> int:
+        """Delete all tasks belonging to a project."""
+        ...
+
 
 @runtime_checkable
 class DependencyRepositoryProtocol(Protocol):
@@ -98,4 +110,8 @@ class DependencyRepositoryProtocol(Protocol):
         tag_filter: Optional[str] = "jira",
     ) -> list[Dependency]:
         """Replace project dependencies matching tag_filter with the provided list."""
+        ...
+
+    async def delete_by_project(self, project_id: UUID) -> int:
+        """Delete all dependencies belonging to a project."""
         ...

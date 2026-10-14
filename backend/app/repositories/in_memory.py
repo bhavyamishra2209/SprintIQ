@@ -128,6 +128,14 @@ class InMemoryDeveloperRepository(DeveloperRepositoryProtocol):
                 results.append(dev)
         return results
 
+    async def delete_by_project(self, project_id: UUID) -> int:
+        to_delete = [
+            did for did, d in self._store.developers.items() if d.project_id == project_id
+        ]
+        for did in to_delete:
+            del self._store.developers[did]
+        return len(to_delete)
+
 
 class InMemorySprintRepository(SprintRepositoryProtocol):
     """In-memory implementation of SprintRepositoryProtocol."""
@@ -167,6 +175,14 @@ class InMemorySprintRepository(SprintRepositoryProtocol):
                 self._store.sprints[sprint.id] = sprint
                 results.append(sprint)
         return results
+
+    async def delete_by_project(self, project_id: UUID) -> int:
+        to_delete = [
+            sid for sid, s in self._store.sprints.items() if s.project_id == project_id
+        ]
+        for sid in to_delete:
+            del self._store.sprints[sid]
+        return len(to_delete)
 
 
 class InMemoryTaskRepository(TaskRepositoryProtocol):
@@ -208,6 +224,14 @@ class InMemoryTaskRepository(TaskRepositoryProtocol):
                 results.append(task)
         return results
 
+    async def delete_by_project(self, project_id: UUID) -> int:
+        to_delete = [
+            tid for tid, t in self._store.tasks.items() if t.project_id == project_id
+        ]
+        for tid in to_delete:
+            del self._store.tasks[tid]
+        return len(to_delete)
+
 
 class InMemoryDependencyRepository(DependencyRepositoryProtocol):
     """In-memory implementation of DependencyRepositoryProtocol."""
@@ -241,3 +265,13 @@ class InMemoryDependencyRepository(DependencyRepositoryProtocol):
             self._store.dependencies[dep.id] = dep
 
         return dependencies
+
+    async def delete_by_project(self, project_id: UUID) -> int:
+        to_delete = [
+            did
+            for did, dep in self._store.dependencies.items()
+            if dep.project_id == project_id
+        ]
+        for did in to_delete:
+            del self._store.dependencies[did]
+        return len(to_delete)

@@ -41,7 +41,7 @@ class Developer(BaseModel):
     jira_account_id: Optional[str] = None
     display_name: str
     email: Optional[str] = None
-    capacity_hours_per_sprint: float = 40.0
+    capacity_hours_per_sprint: float = 80.0
     is_active: bool = True
     created_at: datetime = Field(default_factory=_now)
     updated_at: datetime = Field(default_factory=_now)

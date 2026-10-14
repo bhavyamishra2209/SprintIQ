@@ -71,3 +71,14 @@ class SupabaseDependencyRepository(DependencyRepositoryProtocol):
         return await run_in_threadpool(
             self._replace_dependencies_sync, project_id, dependencies, tag_filter
         )
+
+    def _delete_by_project_sync(self, project_id: UUID) -> int:
+        try:
+            client = get_supabase()
+            res = client.table("dependencies").delete().eq("project_id", str(project_id)).execute()
+            return len(res.data) if res.data else 0
+        except Exception as exc:
+            raise RepositoryError(f"Failed to delete dependencies: {exc}") from exc
+
+    async def delete_by_project(self, project_id: UUID) -> int:
+        return await run_in_threadpool(self._delete_by_project_sync, project_id)
