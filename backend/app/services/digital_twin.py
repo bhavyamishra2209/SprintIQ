@@ -137,6 +137,10 @@ class DigitalTwinService(GraphProvider):
                     is_critical=False,
                     earliest_start_hours=0.0,
                     earliest_finish_hours=float(t.estimate_hours or 0.0),
+                    issue_type=t.issue_type,
+                    priority=t.priority,
+                    story_points=t.story_points,
+                    status_category=t.status_category,
                 )
                 for t in tasks
                 if str(t.id) in G
@@ -219,6 +223,10 @@ class DigitalTwinService(GraphProvider):
                 is_critical=(str(t.id) in critical_nodes_set),
                 earliest_start_hours=earliest_start.get(str(t.id), 0.0),
                 earliest_finish_hours=earliest_finish.get(str(t.id), 0.0),
+                issue_type=t.issue_type,
+                priority=t.priority,
+                story_points=t.story_points,
+                status_category=t.status_category,
             )
             for t in tasks
             if str(t.id) in G

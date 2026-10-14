@@ -23,6 +23,10 @@ class TaskNode(BaseModel):
     is_critical: bool = False
     earliest_start_hours: float = 0.0
     earliest_finish_hours: float = 0.0
+    issue_type: Optional[str] = None
+    priority: Optional[str] = None
+    story_points: Optional[float] = None
+    status_category: Optional[str] = None
 
 
 class DependencyEdge(BaseModel):

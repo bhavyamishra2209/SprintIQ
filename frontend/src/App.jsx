@@ -178,7 +178,11 @@ export default function App() {
               projectStatus={projectStatus}
               sprints={sprints}
               onNavigateToGraph={() => setActiveView('graph')}
-              onNavigateToImpact={() => setActiveView('impact')}
+              onNavigateToImpact={(taskId) => handleNavigateToImpact(taskId)}
+              onSelectTask={(taskId) => {
+                if (taskId) setSelectedTaskId(taskId)
+                setActiveView('graph')
+              }}
               projectName={projectName}
             />
           )}
