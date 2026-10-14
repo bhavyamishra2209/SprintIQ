@@ -47,13 +47,18 @@ export default function WhatIfView({ graphData }) {
     const directlyAffected = nodes.filter((n) => n.assignee_name === dev)
     const directIds = new Set(directlyAffected.map((n) => n.id))
 
-    // Identify downstream tasks blocked by the absent developer's tasks
+    // Multi-hop BFS to find all downstream tasks blocked by the absent developer's tasks
     const downstreamIds = new Set()
-    edges.forEach((e) => {
-      if (directIds.has(e.source)) {
-        downstreamIds.add(e.target)
-      }
-    })
+    const queue = Array.from(directIds)
+    while (queue.length > 0) {
+      const curr = queue.shift()
+      edges.forEach((e) => {
+        if (e.source === curr && !directIds.has(e.target) && !downstreamIds.has(e.target)) {
+          downstreamIds.add(e.target)
+          queue.push(e.target)
+        }
+      })
+    }
 
     // Check if any affected task is on the critical path
     const hasCriticalTaskAffected = directlyAffected.some((n) => n.is_critical)
@@ -74,6 +79,8 @@ export default function WhatIfView({ graphData }) {
 
     return {
       directlyAffected,
+      directIds,
+      downstreamIds,
       downstreamCount: downstreamIds.size,
       finishDelayDays,
       baseDateFormatted: baseDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -85,6 +92,16 @@ export default function WhatIfView({ graphData }) {
       risk,
     }
   }, [executedScenario, nodes, edges, graphData])
+
+  // Naturally sort all project tasks by key suffix (e.g. SCRUM2-1, SCRUM2-2, ... SCRUM2-20)
+  const sortedNodes = useMemo(() => {
+    return [...nodes].sort((a, b) => {
+      const numA = parseInt(a.key?.split('-')[1] || '0', 10)
+      const numB = parseInt(b.key?.split('-')[1] || '0', 10)
+      if (numA && numB) return numA - numB
+      return (a.earliest_start_hours || 0) - (b.earliest_start_hours || 0)
+    })
+  }, [nodes])
 
   // Trigger running the simulation
   const handleRunSimulation = () => {
@@ -164,29 +181,72 @@ export default function WhatIfView({ graphData }) {
                   <span>Baseline</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '12px', height: '8px', background: '#3b82f6', borderRadius: '2px' }} />
-                  <span>Simulated Shift</span>
+                  <div style={{ width: '12px', height: '8px', background: '#93c5fd', border: '1px solid #2563eb', borderRadius: '2px' }} />
+                  <span>Direct Delay</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <div style={{ width: '12px', height: '8px', background: '#fde047', border: '1px solid #ca8a04', borderRadius: '2px' }} />
+                  <span>Cascade Delay</span>
                 </div>
               </div>
             </div>
 
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Comparing Baseline Plan vs Scenario ({executedScenario.developer} absent for {executedScenario.days} days):
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Comparing Baseline Plan vs Scenario ({executedScenario.developer} absent for {executedScenario.days} days):
+              </p>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Showing all {sortedNodes.length} tasks (Scrollable)
+              </span>
+            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {nodes.slice(0, 7).map((node, i) => {
-                const isAssigned = node.assignee_name === executedScenario.developer
-                const delayShift = isAssigned || i > 3 ? executedScenario.days * 2.5 : 0
+            {/* Scrollable container covering exact same space as before */}
+            <div
+              className="scrollable-gantt"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                maxHeight: '340px',
+                overflowY: 'auto',
+                paddingRight: '6px',
+              }}
+            >
+              {sortedNodes.map((node, i) => {
+                const isAssigned = (simulationResults.directIds || new Set()).has(node.id)
+                const isCascade = (simulationResults.downstreamIds || new Set()).has(node.id)
+                const isDelayed = isAssigned || isCascade
+
+                // Horizon percentages
+                const totalHorizon = Math.max(1, (graphData?.total_duration_hours || 184) + (executedScenario.days * 8 * 1.2))
+                const startHrs = node.earliest_start_hours || (i * 7)
+                const durHrs = Math.max(6, node.estimate_hours || 8)
+
+                const baseLeftPct = Math.min(68, Math.max(1, (startHrs / totalHorizon) * 75))
+                const baseWidthPct = Math.min(26, Math.max(10, (durHrs / totalHorizon) * 75))
+
+                const shiftHours = executedScenario.days * 8 * 0.45
+                const shiftPct = Math.min(24, Math.max(8, (shiftHours / totalHorizon) * 75))
+                const shiftedLeftPct = Math.min(74, baseLeftPct + shiftPct)
 
                 return (
                   <div key={node.id} style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={`${node.key || `T-0${i + 1}`} ${node.title}`}
+                      >
                         {node.key || `T-0${i + 1}`} {node.title}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: isAssigned ? '#2563eb' : 'var(--text-muted)' }}>
-                        {node.assignee_name || 'Unassigned'} {isAssigned && '• (On Leave)'}
+                      <div style={{ fontSize: '0.68rem', color: isAssigned ? '#2563eb' : isCascade ? '#ca8a04' : 'var(--text-muted)' }}>
+                        {node.assignee_name || 'Unassigned'} {isAssigned ? '• (On Leave)' : isCascade ? '• (Blocked)' : ''}
                       </div>
                     </div>
 
@@ -195,20 +255,20 @@ export default function WhatIfView({ graphData }) {
                       <div
                         style={{
                           position: 'absolute',
-                          left: `${i * 11}%`,
-                          width: '26%',
+                          left: `${baseLeftPct}%`,
+                          width: `${baseWidthPct}%`,
                           height: '100%',
                           background: '#cbd5e1',
                           borderRadius: 'var(--radius-sm)',
                         }}
                       />
                       {/* Scenario Shifted Bar */}
-                      {delayShift > 0 && (
+                      {isDelayed && executedScenario.days > 0 && (
                         <div
                           style={{
                             position: 'absolute',
-                            left: `${Math.min(72, i * 11 + delayShift)}%`,
-                            width: '26%',
+                            left: `${shiftedLeftPct}%`,
+                            width: `${baseWidthPct}%`,
                             height: '100%',
                             background: isAssigned ? '#93c5fd' : '#fde047',
                             border: `1px solid ${isAssigned ? '#2563eb' : '#ca8a04'}`,
@@ -219,6 +279,7 @@ export default function WhatIfView({ graphData }) {
                             fontSize: '0.66rem',
                             fontWeight: 600,
                             color: isAssigned ? '#1e3a8a' : '#713f12',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                           }}
                         >
                           +{executedScenario.days}d

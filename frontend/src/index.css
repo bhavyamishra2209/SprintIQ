@@ -824,3 +824,20 @@ h1, h2, h3, h4, h5, h6 {
     transform: rotate(360deg);
   }
 }
+
+/* Sleek Scrollable Gantt Container */
+.scrollable-gantt::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollable-gantt::-webkit-scrollbar-track {
+  background: var(--bg-surface-elevated);
+  border-radius: 4px;
+}
+.scrollable-gantt::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+.scrollable-gantt::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
